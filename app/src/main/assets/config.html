@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    * { box-sizing: border-box; font-family: sans-serif; }
+    body { background: #09090b; color: #f4f4f5; padding: 16px; margin: 0; }
+    h2 { font-size: 1.2rem; margin-bottom: 4px; }
+    p { font-size: 0.8rem; color: #a1a1aa; margin-top: 0; margin-bottom: 16px; }
+    .card { background: #141418; border: 1px solid #27272a; border-radius: 12px; padding: 14px; margin-bottom: 12px; }
+    label { display: block; font-size: 0.75rem; color: #a1a1aa; margin-bottom: 4px; margin-top: 10px; }
+    input { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #3f3f46; background: #18181b; color: #fff; font-size: 0.85rem; }
+    button { width: 100%; padding: 12px; border: none; border-radius: 10px; font-weight: bold; margin-top: 10px; cursor: pointer; font-size: 0.85rem; }
+    .btn-blue { background: #3b82f6; color: #fff; }
+    .btn-green { background: #10b981; color: #09090b; }
+    .btn-red { background: #ef4444; color: #fff; }
+    .btn-gray { background: #27272a; color: #fff; }
+  </style>
+</head>
+<body>
+  <h2>Aegis Guard Setup</h2>
+  <p>Pelaporan langsung ke Server Pribadi & Bot Telegram milikmu sendiri.</p>
+
+  <div class="card">
+    <strong>1. Izin Sistem Wajib</strong>
+    <button class="btn-gray" onclick="AndroidBridge.requestAllPermissions()">1. Izinkan Kamera, Lokasi & Telepon</button>
+    <button class="btn-gray" onclick="AndroidBridge.requestOverlay()">2. Izinkan Tampil di Atas Aplikasi</button>
+    <button class="btn-gray" onclick="AndroidBridge.requestDeviceAdmin()">3. Aktifkan Anti-Uninstall (Device Admin)</button>
+  </div>
+
+  <div class="card">
+    <strong>2. Konfigurasi Server & Telegram</strong>
+    <label>URL WebSocket Server (ws:// atau wss://)</label>
+    <input id="serverUrl" placeholder="ws://panel-free1.duckdns.top:4145" />
+
+    <label>Room ID (Harus sama dengan Controller)</label>
+    <input id="roomId" placeholder="hp-utama" />
+
+    <label>Token Rahasia Room</label>
+    <input id="roomToken" type="password" placeholder="rahasia123" />
+
+    <label>Bot Token Telegram (Opsional - Backup)</label>
+    <input id="tgToken" placeholder="123456:ABC-DEF..." />
+
+    <label>Chat ID Telegram</label>
+    <input id="tgChatId" placeholder="987654321" />
+
+    <label>Nomor HP Cadangan (Untuk Auto-Call)</label>
+    <input id="backupPhone" placeholder="081234567890" />
+
+    <label>Pesan Layar Mode HP Hilang</label>
+    <input id="lostMsg" placeholder="HP ini hilang. Tekan tombol di bawah untuk mengembalikan." />
+
+    <button class="btn-blue" onclick="save()">Simpan Konfigurasi</button>
+  </div>
+
+  <div class="card">
+    <strong>3. Kontrol Penjagaan</strong>
+    <button class="btn-green" onclick="AndroidBridge.startGuard()">AKTIFKAN PENJAGAAN SEKARANG</button>
+    <button class="btn-red" onclick="AndroidBridge.stopGuard()">Matikan Penjagaan</button>
+  </div>
+
+  <script>
+    window.onload = () => {
+      const cfg = JSON.parse(AndroidBridge.loadConfig());
+      document.getElementById('serverUrl').value = cfg.serverUrl || '';
+      document.getElementById('roomId').value = cfg.roomId || '';
+      document.getElementById('roomToken').value = cfg.roomToken || '';
+      document.getElementById('tgToken').value = cfg.tgToken || '';
+      document.getElementById('tgChatId').value = cfg.tgChatId || '';
+      document.getElementById('backupPhone').value = cfg.backupPhone || '';
+      document.getElementById('lostMsg').value = cfg.lostMsg || 'HP ini hilang. Tekan tombol di bawah untuk menghubungi pemilik.';
+    };
+
+    function save() {
+      const data = {
+        serverUrl: document.getElementById('serverUrl').value.trim(),
+        roomId: document.getElementById('roomId').value.trim(),
+        roomToken: document.getElementById('roomToken').value.trim(),
+        tgToken: document.getElementById('tgToken').value.trim(),
+        tgChatId: document.getElementById('tgChatId').value.trim(),
+        backupPhone: document.getElementById('backupPhone').value.trim(),
+        lostMsg: document.getElementById('lostMsg').value.trim()
+      };
+      AndroidBridge.saveConfig(JSON.stringify(data));
+    }
+  </script>
+</body>
+</html>
