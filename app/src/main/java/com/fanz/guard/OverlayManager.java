@@ -4,6 +4,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.graphics.Color;
 import android.graphics.PixelFormat;
+import android.graphics.Typeface;
 import android.net.Uri;
 import android.provider.Settings;
 import android.view.Gravity;
@@ -30,6 +31,16 @@ public class OverlayManager {
     }
 
     public void show(String mode, String lostMsg, String backupPhone) {
+        if ("STEALTH".equals(mode)) {
+            showCustom("", "", "#000000", "");
+        } else if ("LOCKDOWN".equals(mode)) {
+            showCustom("PERANGKAT TERKUNCI!", "Lokasi GPS & foto kamera depan sedang dikirim ke pemilik.", "#7F1D1D", "");
+        } else if ("LOST_FOUND".equals(mode)) {
+            showCustom("PERANGKAT INI HILANG", lostMsg.isEmpty() ? "Mohon hubungi pemilik untuk mengembalikan perangkat ini." : lostMsg, "#090B10", backupPhone);
+        }
+    }
+
+    public void showCustom(String titleText, String bodyText, String bgHex, String backupPhone) {
         if (!Settings.canDrawOverlays(context)) return;
         hide();
 
@@ -51,45 +62,57 @@ public class OverlayManager {
         );
         params.gravity = Gravity.CENTER;
 
-        if ("STEALTH".equals(mode)) {
-            root.setBackgroundColor(Color.BLACK);
-        } else if ("LOCKDOWN".equals(mode)) {
-            root.setBackgroundColor(Color.parseColor("#7F1D1D"));
-            TextView tv = new TextView(context);
-            tv.setText("PERANGKAT TERKUNCI!\nLOKASI & WAJAH PELAKU SEDANG DILACAK.");
-            tv.setTextColor(Color.WHITE);
-            tv.setTextSize(20);
-            tv.setGravity(Gravity.CENTER);
-            root.addView(tv, new FrameLayout.LayoutParams(
-                    FrameLayout.LayoutParams.MATCH_PARENT,
-                    FrameLayout.LayoutParams.MATCH_PARENT));
-        } else if ("LOST_FOUND".equals(mode)) {
-            root.setBackgroundColor(Color.parseColor("#09090B"));
+        int parsedColor = Color.parseColor("#7F1D1D");
+        try {
+            if (bgHex != null && !bgHex.isEmpty()) parsedColor = Color.parseColor(bgHex);
+        } catch (Exception ignored) {}
+        root.setBackgroundColor(parsedColor);
+
+        if ((titleText != null && !titleText.isEmpty()) || (bodyText != null && !bodyText.isEmpty())) {
             LinearLayout box = new LinearLayout(context);
             box.setOrientation(LinearLayout.VERTICAL);
             box.setGravity(Gravity.CENTER);
-            box.setPadding(48, 48, 48, 48);
+            box.setPadding(56, 56, 56, 56);
 
-            TextView tv = new TextView(context);
-            tv.setText(lostMsg.isEmpty() ? "HP ini hilang. Hubungi pemilik." : lostMsg);
-            tv.setTextColor(Color.WHITE);
-            tv.setTextSize(18);
-            tv.setGravity(Gravity.CENTER);
-            box.addView(tv);
+            if (titleText != null && !titleText.isEmpty()) {
+                TextView titleView = new TextView(context);
+                titleView.setText(titleText);
+                titleView.setTextColor(Color.WHITE);
+                titleView.setTextSize(22);
+                titleView.setTypeface(null, Typeface.BOLD);
+                titleView.setGravity(Gravity.CENTER);
+                titleView.setPadding(0, 0, 0, 24);
+                box.addView(titleView);
+            }
 
-            if (!backupPhone.isEmpty()) {
+            if (bodyText != null && !bodyText.isEmpty()) {
+                TextView bodyView = new TextView(context);
+                bodyView.setText(bodyText);
+                bodyView.setTextColor(Color.parseColor("#E5E7EB"));
+                bodyView.setTextSize(16);
+                bodyView.setGravity(Gravity.CENTER);
+                bodyView.setPadding(0, 0, 0, 40);
+                box.addView(bodyView);
+            }
+
+            if (backupPhone != null && !backupPhone.trim().isEmpty()) {
                 Button callBtn = new Button(context);
                 callBtn.setText("HUBUNGI PEMILIK SEKARANG");
                 callBtn.setBackgroundColor(Color.parseColor("#10B981"));
                 callBtn.setTextColor(Color.BLACK);
+                callBtn.setTypeface(null, Typeface.BOLD);
+                callBtn.setPadding(40, 24, 40, 24);
                 callBtn.setOnClickListener(v -> {
-                    Intent callIntent = new Intent(Intent.ACTION_CALL, Uri.parse("tel:" + backupPhone));
+                    Intent callIntent = new Intent(Intent.ACTION_CALL, Uri.parse("tel:" + backupPhone.trim()));
                     callIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
                     context.startActivity(callIntent);
                 });
                 box.addView(callBtn);
             }
-            root.addView(box);
+
+            root.addView(box, new FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    FrameLayout.LayoutParams.MATCH_PARENT));
         }
 
         root.setOnTouchListener((v, event) -> {
