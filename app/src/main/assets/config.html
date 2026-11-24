@@ -2,88 +2,131 @@
 <html lang="id">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Aegis Guard Setup</title>
   <style>
-    * { box-sizing: border-box; font-family: sans-serif; }
-    body { background: #09090b; color: #f4f4f5; padding: 16px; margin: 0; }
-    h2 { font-size: 1.2rem; margin-bottom: 4px; }
-    p { font-size: 0.8rem; color: #a1a1aa; margin-top: 0; margin-bottom: 16px; }
-    .card { background: #141418; border: 1px solid #27272a; border-radius: 12px; padding: 14px; margin-bottom: 12px; }
-    label { display: block; font-size: 0.75rem; color: #a1a1aa; margin-bottom: 4px; margin-top: 10px; }
-    input { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #3f3f46; background: #18181b; color: #fff; font-size: 0.85rem; }
-    button { width: 100%; padding: 12px; border: none; border-radius: 10px; font-weight: bold; margin-top: 10px; cursor: pointer; font-size: 0.85rem; }
-    .btn-blue { background: #3b82f6; color: #fff; }
-    .btn-green { background: #10b981; color: #09090b; }
-    .btn-red { background: #ef4444; color: #fff; }
-    .btn-gray { background: #27272a; color: #fff; }
+    :root {
+      --bg: #11100e;
+      --card: #181714;
+      --field: #211f1b;
+      --line: #2d2a25;
+      --ink: #edeae4;
+      --dim: #9a948a;
+      --copper: #c87d55;
+      --sage: #6b9080;
+      --crimson: #c25959;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, sans-serif; }
+    body { background: var(--bg); color: var(--ink); padding: 16px 14px 36px; line-height: 1.45; }
+    .wrap { max-width: 440px; margin: 0 auto; }
+    .head { padding: 4px 2px 16px; border-bottom: 1px solid #24211d; margin-bottom: 14px; }
+    .head h1 { font-size: 1.05rem; font-weight: 700; }
+    .head p { font-size: 0.75rem; color: var(--dim); margin-top: 2px; }
+    .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px; margin-bottom: 12px; }
+    .step-tag { font-size: 0.72rem; font-weight: 600; color: var(--copper); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 10px; display: block; }
+    .perm-btn {
+      width: 100%; padding: 11px 12px; margin-bottom: 8px; border-radius: 8px;
+      background: var(--field); border: 1px solid var(--line); color: var(--ink);
+      font-size: 0.82rem; font-weight: 500; text-align: left; cursor: pointer;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .perm-btn:last-child { margin-bottom: 0; }
+    .perm-btn span { font-size: 0.72rem; color: var(--copper); font-weight: 600; }
+    .code-box {
+      display: flex; gap: 8px; align-items: center; margin-bottom: 10px;
+    }
+    .code-input {
+      flex: 1; background: var(--field); border: 1px solid var(--line); border-radius: 9px;
+      padding: 12px; color: var(--ink); font-size: 1.35rem; font-weight: 700;
+      letter-spacing: 0.22em; text-align: center; outline: none;
+    }
+    .code-input:focus { border-color: var(--copper); }
+    .copy-btn {
+      padding: 14px 14px; border-radius: 9px; background: var(--field);
+      border: 1px solid var(--line); color: var(--ink); font-size: 0.78rem; font-weight: 600; cursor: pointer;
+    }
+    .hint { font-size: 0.73rem; color: var(--dim); margin-bottom: 12px; }
+    .btn-main {
+      width: 100%; padding: 13px; border-radius: 9px; border: none;
+      background: var(--sage); color: #11100e; font-size: 0.88rem; font-weight: 700; cursor: pointer;
+    }
+    .btn-stop {
+      width: 100%; padding: 10px; border-radius: 9px; margin-top: 8px;
+      background: rgba(194, 89, 89, 0.14); border: 1px solid rgba(194, 89, 89, 0.35);
+      color: #e08a8a; font-size: 0.8rem; font-weight: 600; cursor: pointer;
+    }
+    label { display: block; font-size: 0.74rem; color: var(--dim); margin: 10px 0 5px; }
+    input[type="text"], textarea {
+      width: 100%; background: var(--field); border: 1px solid var(--line); border-radius: 8px;
+      padding: 10px 11px; color: var(--ink); font-size: 0.83rem; outline: none;
+    }
+    textarea { min-height: 58px; resize: vertical; }
   </style>
 </head>
 <body>
-  <h2>Aegis Guard Setup</h2>
-  <p>Pelaporan langsung ke Server Pribadi & Bot Telegram milikmu sendiri.</p>
+  <div class="wrap">
+    <div class="head">
+      <h1>Aegis Guard</h1>
+      <p>Siapkan izin lalu tekan Hubungkan</p>
+    </div>
 
-  <div class="card">
-    <strong>1. Izin Sistem Wajib</strong>
-    <button class="btn-gray" onclick="AndroidBridge.requestAllPermissions()">1. Izinkan Kamera, Lokasi & Telepon</button>
-    <button class="btn-gray" onclick="AndroidBridge.requestOverlay()">2. Izinkan Tampil di Atas Aplikasi</button>
-    <button class="btn-gray" onclick="AndroidBridge.requestDeviceAdmin()">3. Aktifkan Anti-Uninstall (Device Admin)</button>
-  </div>
+    <div class="card">
+      <span class="step-tag">1. Aktifkan Izin Wajib</span>
+      <button class="perm-btn" onclick="AndroidBridge.requestBasicPerms()">
+        Kamera, Lokasi, Mic &amp; SMS <span>Izinkan &rarr;</span>
+      </button>
+      <button class="perm-btn" onclick="AndroidBridge.requestOverlayPerm()">
+        Tampil di Atas Aplikasi Lain <span>Izinkan &rarr;</span>
+      </button>
+      <button class="perm-btn" onclick="AndroidBridge.requestDeviceAdmin()">
+        Anti-Uninstall (Admin Perangkat) <span>Aktifkan &rarr;</span>
+      </button>
+      <button class="perm-btn" onclick="AndroidBridge.openAccessibility()">
+        Proteksi Tombol Daya (Opsional) <span>Buka &rarr;</span>
+      </button>
+    </div>
 
-  <div class="card">
-    <strong>2. Konfigurasi Server & Telegram</strong>
-    <label>URL WebSocket Server (ws:// atau wss://)</label>
-    <input id="serverUrl" placeholder="ws://panel-free1.duckdns.top:4145" />
+    <div class="card">
+      <span class="step-tag">2. Kode Koneksi Perangkat</span>
+      <div class="code-box">
+        <input id="pairCode" class="code-input" type="text" maxlength="12" placeholder="123456" />
+        <button class="copy-btn" onclick="copyNow()">Salin</button>
+      </div>
+      <p class="hint">Masukkan kode 6 digit di atas ke Web Controller agar kedua HP langsung terhubung.</p>
 
-    <label>Room ID (Harus sama dengan Controller)</label>
-    <input id="roomId" placeholder="hp-utama" />
+      <button class="btn-main" onclick="startNow()">SIMPAN &amp; HUBUNGKAN SEKARANG</button>
+      <button class="btn-stop" onclick="AndroidBridge.stopGuard()">Matikan Penjagaan</button>
+    </div>
 
-    <label>Token Rahasia Room</label>
-    <input id="roomToken" type="password" placeholder="rahasia123" />
-
-    <label>Bot Token Telegram (Opsional - Backup)</label>
-    <input id="tgToken" placeholder="123456:ABC-DEF..." />
-
-    <label>Chat ID Telegram</label>
-    <input id="tgChatId" placeholder="987654321" />
-
-    <label>Nomor HP Cadangan (Untuk Auto-Call)</label>
-    <input id="backupPhone" placeholder="081234567890" />
-
-    <label>Pesan Layar Mode HP Hilang</label>
-    <input id="lostMsg" placeholder="HP ini hilang. Tekan tombol di bawah untuk mengembalikan." />
-
-    <button class="btn-blue" onclick="save()">Simpan Konfigurasi</button>
-  </div>
-
-  <div class="card">
-    <strong>3. Kontrol Penjagaan</strong>
-    <button class="btn-green" onclick="AndroidBridge.startGuard()">AKTIFKAN PENJAGAAN SEKARANG</button>
-    <button class="btn-red" onclick="AndroidBridge.stopGuard()">Matikan Penjagaan</button>
+    <div class="card">
+      <span class="step-tag">Pengaturan Tambahan (Opsional)</span>
+      <label>Nomor HP Cadangan (Tombol Telepon Darurat)</label>
+      <input id="backupPhone" type="text" placeholder="Contoh: 081234567890" />
+      <label>Pesan Layar Mode Hilang</label>
+      <textarea id="lostMsg">HP ini dilindungi Aegis Guard. Mohon hubungi pemilik untuk mengembalikan.</textarea>
+    </div>
   </div>
 
   <script>
-    window.onload = () => {
-      const cfg = JSON.parse(AndroidBridge.loadConfig());
-      document.getElementById('serverUrl').value = cfg.serverUrl || '';
-      document.getElementById('roomId').value = cfg.roomId || '';
-      document.getElementById('roomToken').value = cfg.roomToken || '';
-      document.getElementById('tgToken').value = cfg.tgToken || '';
-      document.getElementById('tgChatId').value = cfg.tgChatId || '';
-      document.getElementById('backupPhone').value = cfg.backupPhone || '';
-      document.getElementById('lostMsg').value = cfg.lostMsg || 'HP ini hilang. Tekan tombol di bawah untuk menghubungi pemilik.';
-    };
+    window.addEventListener('DOMContentLoaded', () => {
+      try {
+        const cfg = JSON.parse(AndroidBridge.getState());
+        if (cfg.code) document.getElementById('pairCode').value = cfg.code;
+        if (cfg.backupPhone) document.getElementById('backupPhone').value = cfg.backupPhone;
+        if (cfg.lostMsg) document.getElementById('lostMsg').value = cfg.lostMsg;
+      } catch (_) {}
+    });
 
-    function save() {
-      const data = {
-        serverUrl: document.getElementById('serverUrl').value.trim(),
-        roomId: document.getElementById('roomId').value.trim(),
-        roomToken: document.getElementById('roomToken').value.trim(),
-        tgToken: document.getElementById('tgToken').value.trim(),
-        tgChatId: document.getElementById('tgChatId').value.trim(),
-        backupPhone: document.getElementById('backupPhone').value.trim(),
-        lostMsg: document.getElementById('lostMsg').value.trim()
-      };
-      AndroidBridge.saveConfig(JSON.stringify(data));
+    function copyNow() {
+      const code = document.getElementById('pairCode').value.trim();
+      if (code) AndroidBridge.copyCode(code);
+    }
+
+    function startNow() {
+      const code = document.getElementById('pairCode').value.trim();
+      const phone = document.getElementById('backupPhone').value.trim();
+      const msg = document.getElementById('lostMsg').value.trim();
+      AndroidBridge.connectAndStart(code, phone, msg);
     }
   </script>
 </body>

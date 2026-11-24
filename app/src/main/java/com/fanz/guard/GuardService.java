@@ -8,7 +8,6 @@ import android.content.*;
 import android.hardware.*;
 import android.location.Location;
 import android.location.LocationManager;
-import android.net.Uri;
 import android.os.*;
 import android.telephony.SmsManager;
 import android.telephony.TelephonyManager;
@@ -83,8 +82,6 @@ public class GuardService extends Service implements SensorEventListener {
         filter.addAction("android.intent.action.SIM_STATE_CHANGED");
         filter.addAction(Intent.ACTION_BATTERY_CHANGED);
         registerReceiver(systemReceiver, filter);
-
-        connectWebSocket();
     }
 
     @Override
@@ -106,6 +103,8 @@ public class GuardService extends Service implements SensorEventListener {
                     sendEmergencySmsTo(sender, "Lokasi GPS Aegis Guard:");
                 }
             }
+        } else {
+            connectWebSocket();
         }
         return START_STICKY;
     }
@@ -124,15 +123,36 @@ public class GuardService extends Service implements SensorEventListener {
         startForeground(1, notification);
     }
 
-    private void connectWebSocket() {
-        SharedPreferences sp = getSharedPreferences("aegis_cfg", MODE_PRIVATE);
-        String url = sp.getString("serverUrl", "");
-        String roomId = sp.getString("roomId", "");
-        String token = sp.getString("roomToken", "");
-        if (url.isEmpty() || roomId.isEmpty() || token.isEmpty()) return;
+    private void updateNotif(String statusText) {
+        Notification notification = new NotificationCompat.Builder(this, "aegis_guard_channel")
+                .setContentTitle("Aegis Guard Aktif")
+                .setContentText(statusText)
+                .setSmallIcon(android.R.drawable.ic_lock_idle_lock)
+                .setOngoing(true)
+                .build();
+        NotificationManager nm = getSystemService(NotificationManager.class);
+        if (nm != null) nm.notify(1, notification);
+    }
 
+    private void connectWebSocket() {
+        mainHandler.removeCallbacksAndMessages(null);
+        if (webSocket != null) {
+            try { webSocket.close(1000, "Reconnect"); } catch (Exception ignored) {}
+            webSocket = null;
+        }
+
+        SharedPreferences sp = getSharedPreferences("aegis_cfg", MODE_PRIVATE);
+        String url = sp.getString("serverUrl", "ws://panel-free1.duckdns.top:4145");
+        String code = sp.getString("roomId", "");
+        if (code.isEmpty()) {
+            updateNotif("Kode koneksi belum diatur");
+            return;
+        }
+
+        updateNotif("Menghubungkan kode " + code + "...");
         OkHttpClient client = new OkHttpClient();
         Request req = new Request.Builder().url(url).build();
+
         webSocket = client.newWebSocket(req, new WebSocketListener() {
             @Override
             public void onOpen(WebSocket ws, Response response) {
@@ -140,10 +160,11 @@ public class GuardService extends Service implements SensorEventListener {
                     JSONObject reg = new JSONObject();
                     reg.put("type", "REGISTER");
                     reg.put("role", "guard");
-                    reg.put("roomId", roomId);
-                    reg.put("token", token);
+                    reg.put("roomId", code);
+                    reg.put("token", code);
                     ws.send(reg.toString());
-                    EvidenceCollector.flushOfflineVault(GuardService.this, GuardService.this::sendPacket); updateNotif("Terhubung ke Room: " + roomId);
+                    EvidenceCollector.flushOfflineVault(GuardService.this, GuardService.this::sendPacket);
+                    updateNotif("Terhubung (Kode: " + code + ")");
                 } catch (Exception ignored) {}
             }
 
@@ -151,7 +172,9 @@ public class GuardService extends Service implements SensorEventListener {
             public void onMessage(WebSocket ws, String text) {
                 try {
                     JSONObject msg = new JSONObject(text);
-                    if ("SYNC_RULES".equals(msg.optString("type"))) {
+                    if ("ERROR".equals(msg.optString("type"))) {
+                        updateNotif("Kode sedang dipakai perangkat lain");
+                    } else if ("SYNC_RULES".equals(msg.optString("type"))) {
                         activeRules = msg.getJSONObject("rules");
                         sentryModeActive = activeRules.optBoolean("SENTRY_MODE", false);
                     } else if ("COMMAND".equals(msg.optString("type"))) {
@@ -161,13 +184,15 @@ public class GuardService extends Service implements SensorEventListener {
             }
 
             @Override
-            public void onClosed(WebSocket ws, int code, String reason) {
-                updateNotif("Koneksi terputus, menyambung ulang..."); mainHandler.postDelayed(() -> connectWebSocket(), 4000);
+            public void onClosed(WebSocket ws, int codeClose, String reason) {
+                updateNotif("Koneksi terputus, menyambung ulang...");
+                mainHandler.postDelayed(() -> connectWebSocket(), 4000);
             }
 
             @Override
             public void onFailure(WebSocket ws, Throwable t, Response response) {
-                updateNotif("Koneksi terputus, menyambung ulang..."); mainHandler.postDelayed(() -> connectWebSocket(), 4000);
+                updateNotif("Menunggu jaringan untuk konek...");
+                mainHandler.postDelayed(() -> connectWebSocket(), 4000);
             }
         });
     }
@@ -194,7 +219,7 @@ public class GuardService extends Service implements SensorEventListener {
                     overlayManager.showCustom(
                             msg.optString("title", "PERANGKAT TERKUNCI"),
                             msg.optString("message", lostMsg),
-                            msg.optString("bgColor", "#7F1D1D"),
+                            msg.optString("bgColor", "#4A1C1C"),
                             msg.optBoolean("showCall", true) ? backupPhone : ""
                     );
                     break;
