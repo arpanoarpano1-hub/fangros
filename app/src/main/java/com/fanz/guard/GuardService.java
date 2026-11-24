@@ -117,7 +117,7 @@ public class GuardService extends Service implements SensorEventListener {
 
         Notification notification = new NotificationCompat.Builder(this, channelId)
                 .setContentTitle("Aegis Guard Aktif")
-                .setContentText("Perlindungan sensor & anti-pencurian berjalan.")
+                .setContentText("Menyambungkan ke server...")
                 .setSmallIcon(android.R.drawable.ic_lock_idle_lock)
                 .setOngoing(true)
                 .build();
@@ -143,7 +143,7 @@ public class GuardService extends Service implements SensorEventListener {
                     reg.put("roomId", roomId);
                     reg.put("token", token);
                     ws.send(reg.toString());
-                    EvidenceCollector.flushOfflineVault(GuardService.this, GuardService.this::sendPacket);
+                    EvidenceCollector.flushOfflineVault(GuardService.this, GuardService.this::sendPacket); updateNotif("Terhubung ke Room: " + roomId);
                 } catch (Exception ignored) {}
             }
 
@@ -162,12 +162,12 @@ public class GuardService extends Service implements SensorEventListener {
 
             @Override
             public void onClosed(WebSocket ws, int code, String reason) {
-                mainHandler.postDelayed(() -> connectWebSocket(), 4000);
+                updateNotif("Koneksi terputus, menyambung ulang..."); mainHandler.postDelayed(() -> connectWebSocket(), 4000);
             }
 
             @Override
             public void onFailure(WebSocket ws, Throwable t, Response response) {
-                mainHandler.postDelayed(() -> connectWebSocket(), 4000);
+                updateNotif("Koneksi terputus, menyambung ulang..."); mainHandler.postDelayed(() -> connectWebSocket(), 4000);
             }
         });
     }
