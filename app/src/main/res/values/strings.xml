@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Aegis Guard</string>
+    <string name="acc_desc">Melindungi tombol daya dan panel akses cepat saat layar perangkat terkunci.</string>
+</resources>

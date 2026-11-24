@@ -10,6 +10,7 @@ import android.location.Location;
 import android.location.LocationManager;
 import android.net.Uri;
 import android.os.*;
+import android.telephony.SmsManager;
 import android.telephony.TelephonyManager;
 import androidx.core.app.NotificationCompat;
 import okhttp3.*;
@@ -20,10 +21,11 @@ public class GuardService extends Service implements SensorEventListener {
     private OverlayManager overlayManager;
     private SensorManager sensorManager;
     private KeyguardManager keyguardManager;
-    private Handler mainHandler = new Handler(Looper.getMainLooper());
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
 
     private boolean isPocketCovered = false;
     private boolean lastGaspTriggered = false;
+    private boolean sentryModeActive = false;
     private JSONObject activeRules = new JSONObject();
 
     private final BroadcastReceiver systemReceiver = new BroadcastReceiver() {
@@ -53,6 +55,7 @@ public class GuardService extends Service implements SensorEventListener {
                 if (level > 0 && level <= 5 && !lastGaspTriggered && isRuleEnabled("LAST_GASP_BATTERY")) {
                     lastGaspTriggered = true;
                     executeEmergency("PROTOKOL NAPAS TERAKHIR: Baterai tersisa " + level + "%", false, null);
+                    sendEmergencySms("DARURAT BATERAI " + level + "%!");
                 }
                 sendTelemetry(level, plugged > 0, usbPc, locked);
             }
@@ -69,8 +72,10 @@ public class GuardService extends Service implements SensorEventListener {
 
         Sensor prox = sensorManager.getDefaultSensor(Sensor.TYPE_PROXIMITY);
         Sensor accel = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
+        Sensor linear = sensorManager.getDefaultSensor(Sensor.TYPE_LINEAR_ACCELERATION);
         if (prox != null) sensorManager.registerListener(this, prox, SensorManager.SENSOR_DELAY_NORMAL);
         if (accel != null) sensorManager.registerListener(this, accel, SensorManager.SENSOR_DELAY_NORMAL);
+        if (linear != null) sensorManager.registerListener(this, linear, SensorManager.SENSOR_DELAY_NORMAL);
 
         IntentFilter filter = new IntentFilter();
         filter.addAction(Intent.ACTION_POWER_DISCONNECTED);
@@ -84,8 +89,23 @@ public class GuardService extends Service implements SensorEventListener {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        if (intent != null && "TRIGGER_INTRUDER_PIN".equals(intent.getAction()) && isRuleEnabled("WRONG_PIN")) {
-            executeEmergency("Percobaan salah PIN/Pola berulang kali!", false, "STEALTH");
+        if (intent != null && intent.getAction() != null) {
+            String act = intent.getAction();
+            if ("TRIGGER_INTRUDER_PIN".equals(act) && isRuleEnabled("WRONG_PIN")) {
+                executeEmergency("Percobaan salah PIN/Pola berulang kali!", false, "STEALTH");
+            } else if ("TRIGGER_FAKE_POWEROFF".equals(act)) {
+                overlayManager.showCustom("Mematikan daya...", "Menyimpan pengaturan sistem...", "#000000", "");
+                mainHandler.postDelayed(() -> overlayManager.showCustom("", "", "#000000", ""), 2200);
+                EvidenceCollector.captureAndDispatch(this, "Pelaku mencoba mematikan daya HP!", this::sendPacket);
+            } else if ("SMS_REMOTE_CMD".equals(act)) {
+                String cmd = intent.getStringExtra("cmd");
+                String sender = intent.getStringExtra("sender");
+                if ("AEGIS#LOCK".equals(cmd)) {
+                    executeEmergency("Perintah Kunci via SMS dari " + sender, true, "LOCKDOWN");
+                } else if ("AEGIS#LOC".equals(cmd)) {
+                    sendEmergencySmsTo(sender, "Lokasi GPS Aegis Guard:");
+                }
+            }
         }
         return START_STICKY;
     }
@@ -123,6 +143,7 @@ public class GuardService extends Service implements SensorEventListener {
                     reg.put("roomId", roomId);
                     reg.put("token", token);
                     ws.send(reg.toString());
+                    EvidenceCollector.flushOfflineVault(GuardService.this, GuardService.this::sendPacket);
                 } catch (Exception ignored) {}
             }
 
@@ -132,8 +153,9 @@ public class GuardService extends Service implements SensorEventListener {
                     JSONObject msg = new JSONObject(text);
                     if ("SYNC_RULES".equals(msg.optString("type"))) {
                         activeRules = msg.getJSONObject("rules");
+                        sentryModeActive = activeRules.optBoolean("SENTRY_MODE", false);
                     } else if ("COMMAND".equals(msg.optString("type"))) {
-                        handleRemoteCommand(msg.optString("action"));
+                        handleRemoteCommand(msg);
                     }
                 } catch (Exception ignored) {}
             }
@@ -151,7 +173,8 @@ public class GuardService extends Service implements SensorEventListener {
     }
 
     @SuppressLint("MissingPermission")
-    private void handleRemoteCommand(String action) {
+    private void handleRemoteCommand(JSONObject msg) {
+        String action = msg.optString("action");
         SharedPreferences sp = getSharedPreferences("aegis_cfg", MODE_PRIVATE);
         String lostMsg = sp.getString("lostMsg", "");
         String backupPhone = sp.getString("backupPhone", "");
@@ -163,6 +186,33 @@ public class GuardService extends Service implements SensorEventListener {
                     SirenPlayer.start(this);
                     overlayManager.show("LOCKDOWN", lostMsg, backupPhone);
                     EvidenceCollector.captureAndDispatch(this, "Kunci Paksa dari Controller", this::sendPacket);
+                    break;
+                case "CUSTOM_LOCK":
+                    lockDeviceScreen();
+                    if (msg.optBoolean("playSiren", false)) SirenPlayer.start(this);
+                    else SirenPlayer.stop();
+                    overlayManager.showCustom(
+                            msg.optString("title", "PERANGKAT TERKUNCI"),
+                            msg.optString("message", lostMsg),
+                            msg.optString("bgColor", "#7F1D1D"),
+                            msg.optBoolean("showCall", true) ? backupPhone : ""
+                    );
+                    break;
+                case "SPEAK_TTS":
+                    VoiceAnnouncer.speakText(this, msg.optString("text", ""));
+                    break;
+                case "PLAY_VOICE":
+                    VoiceAnnouncer.playAudioBase64(this, msg.optString("audioBase64", ""));
+                    break;
+                case "RECORD_AMBIENT":
+                    EnvironmentScanner.recordAmbientAudio(this, 10, b64 -> {
+                        try {
+                            JSONObject pkt = new JSONObject();
+                            pkt.put("type", "AMBIENT_AUDIO");
+                            pkt.put("audioBase64", b64);
+                            sendPacket(pkt);
+                        } catch (Exception ignored) {}
+                    });
                     break;
                 case "UNLOCK":
                     SirenPlayer.stop();
@@ -178,17 +228,10 @@ public class GuardService extends Service implements SensorEventListener {
                     overlayManager.show("LOST_FOUND", lostMsg, backupPhone);
                     break;
                 case "CAPTURE_NOW":
-                    EvidenceCollector.captureAndDispatch(this, "Permintaan Lacak Manual", this::sendPacket);
+                    EvidenceCollector.captureAndDispatch(this, "Permintaan Lacak & Radar Wi-Fi Manual", this::sendPacket);
                     break;
                 case "SIREN_OFF":
                     SirenPlayer.stop();
-                    break;
-                case "CALL_BACKUP":
-                    if (!backupPhone.isEmpty()) {
-                        Intent call = new Intent(Intent.ACTION_CALL, Uri.parse("tel:" + backupPhone));
-                        call.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                        startActivity(call);
-                    }
                     break;
             }
         });
@@ -196,13 +239,13 @@ public class GuardService extends Service implements SensorEventListener {
 
     private void triggerGraceAlert(String code, String reason) {
         Vibrator v = (Vibrator) getSystemService(VIBRATOR_SERVICE);
-        if (v != null) v.vibrate(VibrationEffect.createOneShot(400, VibrationEffect.DEFAULT_AMPLITUDE));
+        if (v != null) v.vibrate(VibrationEffect.createOneShot(450, VibrationEffect.DEFAULT_AMPLITUDE));
 
         mainHandler.postDelayed(() -> {
             if (keyguardManager != null && keyguardManager.isKeyguardLocked()) {
                 executeEmergency(reason, true, "LOCKDOWN");
             }
-        }, 4000);
+        }, 3500);
     }
 
     private void executeEmergency(String reason, boolean playSiren, String screenMode) {
@@ -215,6 +258,23 @@ public class GuardService extends Service implements SensorEventListener {
             }
             EvidenceCollector.captureAndDispatch(this, reason, this::sendPacket);
         });
+    }
+
+    @SuppressLint("MissingPermission")
+    private void sendEmergencySms(String prefix) {
+        SharedPreferences sp = getSharedPreferences("aegis_cfg", MODE_PRIVATE);
+        String phone = sp.getString("backupPhone", "");
+        if (!phone.isEmpty()) sendEmergencySmsTo(phone, prefix);
+    }
+
+    @SuppressLint("MissingPermission")
+    private void sendEmergencySmsTo(String phone, String prefix) {
+        try {
+            LocationManager lm = (LocationManager) getSystemService(LOCATION_SERVICE);
+            Location loc = lm.getLastKnownLocation(LocationManager.GPS_PROVIDER);
+            String link = loc != null ? "https://maps.google.com/?q=" + loc.getLatitude() + "," + loc.getLongitude() : "GPS belum terkunci";
+            SmsManager.getDefault().sendTextMessage(phone, null, prefix + " " + link, null, null);
+        } catch (Exception ignored) {}
     }
 
     private void lockDeviceScreen() {
@@ -254,7 +314,12 @@ public class GuardService extends Service implements SensorEventListener {
     }
 
     private void sendPacket(JSONObject obj) {
-        if (webSocket != null) webSocket.send(obj.toString());
+        if (webSocket != null) {
+            boolean sent = webSocket.send(obj.toString());
+            if (!sent && "ALERT".equals(obj.optString("type"))) {
+                EvidenceCollector.saveToOfflineVault(this, obj);
+            }
+        }
     }
 
     private boolean isRuleEnabled(String key) {
@@ -272,6 +337,13 @@ public class GuardService extends Service implements SensorEventListener {
             double gForce = Math.sqrt(x * x + y * y + z * z);
             if (gForce > 26.0) {
                 triggerGraceAlert("POCKET_SNATCH", "Tarikan saku mendadak terdeteksi!");
+            }
+        } else if (event.sensor.getType() == Sensor.TYPE_LINEAR_ACCELERATION && sentryModeActive) {
+            float lx = event.values[0], ly = event.values[1], lz = event.values[2];
+            double move = Math.sqrt(lx * lx + ly * ly + lz * lz);
+            if (move > 2.2) {
+                sentryModeActive = false;
+                triggerGraceAlert("SENTRY_MOVED", "Mode Penjaga Meja: Perangkat digeser!");
             }
         }
     }
